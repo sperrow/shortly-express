@@ -10,6 +10,7 @@ var User = require('./app/models/user');
 var Links = require('./app/collections/links');
 var Link = require('./app/models/link');
 var Click = require('./app/models/click');
+var bcrypt = require('bcrypt-nodejs');
 
 var app = express();
 
@@ -23,25 +24,21 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
 
 
-app.get('/', 
-function(req, res) {
+app.get('/', function(req, res) {
   res.render('index');
 });
 
-app.get('/create', 
-function(req, res) {
+app.get('/create', function(req, res) {
   res.render('index');
 });
 
-app.get('/links', 
-function(req, res) {
+app.get('/links', function(req, res) {
   Links.reset().fetch().then(function(links) {
     res.send(200, links.models);
   });
 });
 
-app.post('/links', 
-function(req, res) {
+app.post('/links', function(req, res) {
   var uri = req.body.url;
 
   if (!util.isValidUrl(uri)) {
@@ -78,7 +75,49 @@ function(req, res) {
 // Write your authentication routes here
 /************************************************************/
 
+app.get('/signup', function(req, res){
+  res.render('signup');
+});
 
+app.post('/signup', function(req, res){
+
+});
+
+app.get('/login', function(req, res){
+  res.render('login');
+});
+
+app.post('/login', function(req, res){
+  var username = req.body.username;
+  var password = req.body.password;
+  console.log('92 username: ', username);
+  console.log('92 password: ', password);
+
+  new User({username: username}).fetch().then(function(user){
+    if (!user) {
+      var user = new User({
+        username: username,
+        password: password
+      });
+
+      user.save().then(function(newUser) {
+        console.log('newUser: ', newUser);
+        Users.add(newUser);
+        res.send(200, newUser);
+      });
+
+    } else if( util.comparePassword( password, user.password() ) ) {
+      util.createSession(request, response, user);
+      res.redirect('/links');
+    } else {
+      //redirect to login
+    }
+  });
+});
+
+app.get('/logout', function(req, res){
+
+});
 
 /************************************************************/
 // Handle the wildcard route last - if all other routes fail
