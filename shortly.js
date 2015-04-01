@@ -2,6 +2,7 @@ var express = require('express');
 var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
+var session = require('express-session');
 
 
 var db = require('./app/config');
@@ -22,25 +23,31 @@ app.use(bodyParser.json());
 // Parse forms (signup/login)
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
+//Setting up a new session
+app.use(session({
+  secret: 'super-secret',
+  resave: false,
+  saveUninitialized: true
+}));
 
 
-app.get('/', function(req, res) {
+app.get('/', util.checkUser, function(req, res) {
   res.render('index');
 });
 
-app.get('/create', function(req, res) {
+app.get('/create', util.checkUser, function(req, res) {
   res.render('index');
 });
 
-app.get('/links', function(req, res) {
+app.get('/links', util.checkUser, function(req, res) {
   Links.reset().fetch().then(function(links) {
     res.send(200, links.models);
   });
 });
 
-app.post('/links', function(req, res) {
+app.post('/links', util.checkUser, function(req, res) {
   var uri = req.body.url;
-
+  console.log('posting a link');
   if (!util.isValidUrl(uri)) {
     console.log('Not a valid url: ', uri);
     return res.send(404);
@@ -80,7 +87,27 @@ app.get('/signup', function(req, res){
 });
 
 app.post('/signup', function(req, res){
+  var username = req.body.username;
+  var password = req.body.password;
 
+  new User({username: username})
+    .fetch()
+    .then(function(user){
+      if (!user) {
+        var user = new User({
+          username: username,
+          password: password
+        });
+        user.save().then(function(newUser) {
+          Users.add(newUser);
+          util.createSession(req, username, function() {
+            res.redirect('/');
+          });
+        });
+      } else {
+        res.redirect('/signup');
+      }
+  });
 });
 
 app.get('/login', function(req, res){
@@ -90,33 +117,26 @@ app.get('/login', function(req, res){
 app.post('/login', function(req, res){
   var username = req.body.username;
   var password = req.body.password;
-  console.log('92 username: ', username);
-  console.log('92 password: ', password);
 
-  new User({username: username}).fetch().then(function(user){
-    if (!user) {
-      var user = new User({
-        username: username,
-        password: password
-      });
-
-      user.save().then(function(newUser) {
-        console.log('newUser: ', newUser);
-        Users.add(newUser);
-        res.send(200, newUser);
-      });
-
-    } else if( util.comparePassword( password, user.password() ) ) {
-      util.createSession(request, response, user);
-      res.redirect('/links');
-    } else {
-      //redirect to login
-    }
+  new User({username: username})
+    .fetch()
+    .then(function(user){
+      if (!user) {
+        res.redirect('/login');
+      } else if( user.comparePassword(password) ) {
+        util.createSession(req, username, function() {
+          res.redirect('/');
+        });
+      } else {
+        res.redirect('/login');
+      }
   });
 });
 
 app.get('/logout', function(req, res){
-
+  req.session.destroy(function(){
+    res.redirect('/login');
+  });
 });
 
 /************************************************************/
