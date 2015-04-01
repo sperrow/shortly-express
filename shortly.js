@@ -11,7 +11,6 @@ var User = require('./app/models/user');
 var Links = require('./app/collections/links');
 var Link = require('./app/models/link');
 var Click = require('./app/models/click');
-var bcrypt = require('bcrypt-nodejs');
 
 var app = express();
 
@@ -25,7 +24,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
 //Setting up a new session
 app.use(session({
-  secret: 'super-secret',
+  secret: 'shhh, it\'s a secret',
   resave: false,
   saveUninitialized: true
 }));
@@ -47,7 +46,7 @@ app.get('/links', util.checkUser, function(req, res) {
 
 app.post('/links', util.checkUser, function(req, res) {
   var uri = req.body.url;
-  console.log('posting a link');
+
   if (!util.isValidUrl(uri)) {
     console.log('Not a valid url: ', uri);
     return res.send(404);
@@ -98,12 +97,11 @@ app.post('/signup', function(req, res){
           username: username,
           password: password
         });
-        user.save().then(function(newUser) {
-          Users.add(newUser);
-          util.createSession(req, username, function() {
-            res.redirect('/');
+        user.save()
+          .then(function(newUser) {
+            util.createSession(req, res, newUser);
+            Users.add(newUser);
           });
-        });
       } else {
         res.redirect('/signup');
       }
@@ -123,13 +121,22 @@ app.post('/login', function(req, res){
     .then(function(user){
       if (!user) {
         res.redirect('/login');
-      } else if( user.comparePassword(password) ) {
-        util.createSession(req, username, function() {
-          res.redirect('/');
-        });
       } else {
-        res.redirect('/login');
+        user.comparePassword(password, function(match) {
+          if( match ) {
+            util.createSession(req, res, user);
+          } else {
+            res.redirect('/login');
+          }
+        });
       }
+      // } else if( user.comparePassword(password) ) {
+      //   util.createSession(req, username, function() {
+      //     res.redirect('/');
+      //   });
+      // } else {
+      //   res.redirect('/login');
+      // }
   });
 });
 
